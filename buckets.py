@@ -1,16 +1,26 @@
 import boto3
-from botocore.exceptions import NoCredentialsError
 
+# Nombres de los buckets
+BUCKET_ORIGINAL = "imagenes-originales-ejercicio"
+BUCKET_THUMBNAILS = "imagenes-thumbnails-ejercicio"
 
+# Crear el cliente de S3
+s3 = boto3.client('s3')
 
-# Crear un cliente de S3 con la sesión personalizada
-s3 = session.client('s3')
+# Crear los buckets
+def crear_buckets():
+    try:
+        # Crear bucket para imágenes originales
+        s3.create_bucket(Bucket=BUCKET_ORIGINAL)
+        print(f"Bucket '{BUCKET_ORIGINAL}' creado exitosamente.")
 
-try:
-    s3.create_bucket(Bucket='images-bucket', CreateBucketConfiguration={'LocationConstraint': 'us-east-1'})
-    print("Bucket creado exitosamente.")
-except NoCredentialsError:
-    print("Error: No se encontraron las credenciales de AWS.")
-except Exception as e:
-    print(f"Ocurrió un error: {e}")
+        # Crear bucket para thumbnails
+        s3.create_bucket(Bucket=BUCKET_THUMBNAILS)
+        print(f"Bucket '{BUCKET_THUMBNAILS}' creado exitosamente.")
+    
+    except Exception as e:
+        print(f"Error al crear los buckets: {e}")
+
+if __name__ == "__main__":
+    crear_buckets()
 

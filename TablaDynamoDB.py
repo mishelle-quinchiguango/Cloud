@@ -1,29 +1,36 @@
 import boto3
 
-dynamodb = boto3.resource('dynamodb')
+TABLE_NAME = "MetadatosImagenes"
 
+dynamodb = boto3.client('dynamodb', region_name='us-east-1')
 
-def create_dynamodb_table():
-    table = dynamodb.create_table(
-        TableName='images-metadata-table',
-        KeySchema=[
-            {
-                'AttributeName': 'image_id',
-                'KeyType': 'HASH'  
+# Crear la tabla
+def crear_tabla_dynamodb():
+    try:
+        response = dynamodb.create_table(
+            TableName=TABLE_NAME,
+            KeySchema=[
+                {
+                    'AttributeName': 'NombreArchivo',
+                    'KeyType': 'HASH'  
+                }
+            ],
+            AttributeDefinitions=[
+                {
+                    'AttributeName': 'NombreArchivo',
+                    'AttributeType': 'S' 
+                }
+            ],
+            ProvisionedThroughput={
+                'ReadCapacityUnits': 5,
+                'WriteCapacityUnits': 5
             }
-        ],
-        AttributeDefinitions=[
-            {
-                'AttributeName': 'image_id',
-                'AttributeType': 'S'
-            }
-        ],
-        ProvisionedThroughput={
-            'ReadCapacityUnits': 5,
-            'WriteCapacityUnits': 5
-        }
-    )
-    table.meta.client.get_waiter('table_exists').wait(TableName='images-metadata-table')
-    print("Tabla DynamoDB creada exitosamente.")
+        )
+        print(f"Tabla '{TABLE_NAME}' creada exitosamente.")
+        print(response)
+    except Exception as e:
+        print(f"Error al crear la tabla: {e}")
 
-create_dynamodb_table()
+if __name__ == "__main__":
+    crear_tabla_dynamodb()
+

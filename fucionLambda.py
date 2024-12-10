@@ -1,48 +1,42 @@
-import json
 import boto3
+import os
 from PIL import Image
-import io
-
+from io import BytesIO
 
 s3 = boto3.client('s3')
 dynamodb = boto3.client('dynamodb')
-
-thumbnails_bucket = 'thumbnails-bucket'
-table_name = 'images-metadata-table'
+TABLE_NAME = "MetadatosImagenes"
+THUMBNAIL_BUCKET = "imagenes-thumbnails-ejercicio"
 
 def lambda_handler(event, context):
-    # Procesar los registros de la cola SQS
-    for record in event['Records']:
-        
-        s3_bucket = record['s3']['bucket']['name']
-        s3_key = record['s3']['object']['key']
-        
-        image_object = s3.get_object(Bucket=s3_bucket, Key=s3_key)
-        image_data = image_object['Body'].read()
-
-        image = Image.open(io.BytesIO(image_data))
-        image.thumbnail((128, 128))  
-        
-        thumbnail_key = f'thumbnails/{s3_key}'
-        buffer = io.BytesIO()
-        image.save(buffer, 'JPEG')
-        buffer.seek(0)
-        
-        s3.put_object(Bucket=thumbnails_bucket, Key=thumbnail_key, Body=buffer)
-        
-        # Guardar los metadatos en DynamoDB
-        image_size = len(image_data)
-        dynamodb.put_item(
-            TableName=table_name,
-            Item={
-                'image_id': {'S': s3_key},
-                'image_url': {'S': f'https://{s3_bucket}.s3.amazonaws.com/{s3_key}'},
-                'thumbnail_url': {'S': f'https://{thumbnails_bucket}.s3.amazonaws.com/{thumbnail_key}'},
-                'size': {'N': str(image_size)}
-            }
-        )
+    
+    bucket_name = event['Records'][0]['s3']['bucket']['name']
+    object_key = event['Records'][0]['s3']['object']['key']
+    
+   
+    response = s3.get_object(Bucket=bucket_name, Key=object_key)
+    image_data = response['Body'].read()
+    
+    # Abrir la imagen con PIL y generar un thumbnail
+    image = Image.open(BytesIO(image_data))
+    image.thumbnail((100, 100)) 
+    
+  
+    thumbnail_key = f"thumbnails/{object_key}"
+    buffer = BytesIO()
+    image.save(buffer, format='JPEG')
+    buffer.seek(0)
+    s3.put_object(Bucket=THUMBNAIL_BUCKET, Key=thumbnail_key, Body=buffer, ContentType='image/jpeg')
+    
+    # Guardar metadatos en DynamoDB
+    metadata = {
+        'NombreArchivo': {'S': object_key},
+        'URL': {'S': f"https://{THUMBNAIL_BUCKET}.s3.amazonaws.com/{thumbnail_key}"},
+        'Tamano': {'N': str(len(buffer.getvalue()))} 
+    }
+    dynamodb.put_item(TableName=TABLE_NAME, Item=metadata)
     
     return {
         'statusCode': 200,
-        'body': json.dumps('Thumbnail generado y metadatos guardados.')
+        'body': 'Thumbnail generado y metadatos almacenados correctamente.'
     }

@@ -6,7 +6,8 @@ Nota: El código utilizado para cada fichero se encuentra dentro de este reposit
 1.	Crear el bucket de S3
 1.1.	Crear ul fichero llamado buckets.py en el cual se crean dos buckets: uno para las imágenes originales y otro para los thumbnails
 1.2.	En AWS usar la opción Upload en CloudShell para cargar el archivo. Para verificar si el fichero se cargó correctamente utilizamos el comando:
-  	```bash ls
+  	```bash
+   ls
  
 1.3.	Ejecutamos el script con el siguiente comando: python “nombreDelScript”.py
 1.4.	Para verificar los buckets creados utilizamos el siguiente comando:

@@ -11,7 +11,7 @@ def configure_s3_notification():
     notification_configuration = {
         'QueueConfigurations': [
             {
-                'QueueUrl': queue_url,
+                'QueueUrl': https://sqs.us-east-1.amazonaws.com/758159251915/imagen-cargada-queue,
                 'Event': 's3:ObjectCreated:*',
                 'Filter': {'Key': {'FilterRules': [{'Name': 'suffix', 'Value': '.jpg'}]}}  
             }

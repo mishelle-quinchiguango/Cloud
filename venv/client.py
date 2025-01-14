@@ -10,19 +10,12 @@ def run():
 
     # Crear una solicitud
     request = wine_service_pb2.WineRequest(
-        alcohol=13.2,
-        malic_acid=2.0,
-        ash=2.3,
-        alcalinity_of_ash=18.5,
-        magnesium=98.0,
-        total_phenols=2.8,
-        flavanoids=3.0,
-        nonflavanoid_phenols=0.26,
-        proanthocyanins=1.6,
-        color_intensity=5.0,
-        hue=1.04,
-        od280_od315=3.4,
-        proline=1050.0
+        alcohol=13.16, malic_acid=3.57, ash=2.15,
+    alcalinity_of_ash=21, magnesium=102,
+    total_phenols=1.5, flavanoids=0.55,
+    nonflavanoid_phenols=0.43, proanthocyanins=1.3,
+    color_intensity=4, hue=0.6,
+    od280_od315=1.68, proline=830
     )
 
     # Enviar la solicitud al servidor

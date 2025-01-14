@@ -1,124 +1,120 @@
-# Asegúrate de incluir todas las funciones que hemos creado antes:
-from confluent_kafka import Producer, Consumer
+import requests
 import json
 import grpc
+from confluent_kafka import Producer, Consumer
 import wine_service_pb2
 import wine_service_pb2_grpc
-import joblib
 
-# 1. Predicción con gRPC
-def prediccion_grpc(data):
-    # Crear canal y stub gRPC
-    channel = grpc.insecure_channel('localhost:50051')  # Asegúrate de que el servidor gRPC está corriendo
+# Configuración
+FASTAPI_URL = "http://localhost:8000/predict/"  # Cambia el puerto si es necesario
+GRPC_SERVER = "localhost:50051"  # Cambia el puerto si es necesario
+KAFKA_BROKER = "localhost:29092"
+TOPIC_REQUESTS = "predictions_requests"
+TOPIC_RESULTS = "predictions_results"
+
+# Datos de ejemplo
+sample_data = {
+    "alcohol": 13.16,
+    "malic_acid": 3.57,
+    "ash": 2.15,
+    "alcalinity_of_ash": 21,
+    "magnesium": 102,
+    "total_phenols": 1.5,
+    "flavanoids": 0.55,
+    "nonflavanoid_phenols": 0.43,
+    "proanthocyanins": 1.3,
+    "color_intensity": 4,
+    "hue": 0.6,
+    "od280_od315": 1.68,
+    "proline": 830
+}
+
+# Función 1: Predicción usando el API REST (FastAPI)
+def predict_rest(data):
+    response = requests.get(FASTAPI_URL, params=data)
+    if response.status_code == 200:
+        print(f"Predicción REST: {response.json()['prediction']}")
+    else:
+        print(f"Error en predicción REST: {response.status_code}, {response.text}")
+
+# Función 2: Predicción usando gRPC
+def predict_grpc(data):
+    # Crear un canal y stub de gRPC
+    channel = grpc.insecure_channel(GRPC_SERVER)
     stub = wine_service_pb2_grpc.WinePredictionStub(channel)
 
-    # Crear la solicitud gRPC
+    # Crear solicitud
     request = wine_service_pb2.WineRequest(
-        alcohol=data['alcohol'],
-        malic_acid=data['malic_acid'],
-        ash=data['ash'],
-        alcalinity_of_ash=data['alcalinity_of_ash'],
-        magnesium=data['magnesium'],
-        total_phenols=data['total_phenols'],
-        flavanoids=data['flavanoids'],
-        nonflavanoid_phenols=data['nonflavanoid_phenols'],
-        proanthocyanins=data['proanthocyanins'],
-        color_intensity=data['color_intensity'],
-        hue=data['hue'],
-        od280_od315=data['od280_od315'],
-        proline=data['proline']
+        alcohol=data["alcohol"],
+        malic_acid=data["malic_acid"],
+        ash=data["ash"],
+        alcalinity_of_ash=data["alcalinity_of_ash"],
+        magnesium=data["magnesium"],
+        total_phenols=data["total_phenols"],
+        flavanoids=data["flavanoids"],
+        nonflavanoid_phenols=data["nonflavanoid_phenols"],
+        proanthocyanins=data["proanthocyanins"],
+        color_intensity=data["color_intensity"],
+        hue=data["hue"],
+        od280_od315=data["od280_od315"],
+        proline=data["proline"]
     )
 
-    # Realizar la predicción
+    # Realizar predicción
     response = stub.Predict(request)
-    return response.prediction
+    print(f"Predicción gRPC: {response.prediction}")
 
-# 2. Predicción con Kafka
-def prediccion_kafka(data):
-    # Configurar el productor
-    producer = Producer({'bootstrap.servers': 'localhost:29092'})
-
-    # Enviar el mensaje al tópico
-    producer.produce('wine-predictions', key="key1", value=json.dumps(data))
+# Función 3: Predicción usando Kafka
+def predict_kafka(data):
+    # Configurar productor
+    producer = Producer({'bootstrap.servers': KAFKA_BROKER})
+    producer.produce(TOPIC_REQUESTS, json.dumps(data).encode('utf-8'))
     producer.flush()
-    print("Mensaje enviado a Kafka.")
+    print("Solicitud enviada a Kafka...")
 
-    # Configurar el consumidor
+    # Configurar consumidor
     consumer = Consumer({
-        'bootstrap.servers': 'localhost:29092',
-        'group.id': 'wine-consumer-group',
+        'bootstrap.servers': KAFKA_BROKER,
+        'group.id': 'test_group',
         'auto.offset.reset': 'earliest'
     })
-    consumer.subscribe(['wine-predictions'])
+    consumer.subscribe([TOPIC_RESULTS])
 
-    # Leer el mensaje del tópico
+    print("Esperando resultado de Kafka...")
     while True:
-        msg = consumer.poll(timeout=10.0)
+        msg = consumer.poll(1.0)
         if msg is None:
-            print("No se recibieron mensajes.")
             continue
         if msg.error():
-            print(f"Error en el mensaje: {msg.error()}")
+            print(f"Error en Kafka: {msg.error()}")
             break
-
-        # Mostrar el mensaje recibido
-        print(f"Mensaje recibido: {msg.value().decode('utf-8')}")
+        result = json.loads(msg.value().decode('utf-8'))
+        print(f"Predicción Kafka: {result['prediction']}")
         consumer.close()
-        return json.loads(msg.value())
+        break
 
-# 3. Predicción local directa
-def prediccion_local(data):
-    # Cargar el modelo guardado
-    modelo = joblib.load('wine_classification_model.pkl')
-
-    # Formatear los datos para la predicción
-    input_data = [[
-        data['alcohol'], data['malic_acid'], data['ash'], data['alcalinity_of_ash'],
-        data['magnesium'], data['total_phenols'], data['flavanoids'],
-        data['nonflavanoid_phenols'], data['proanthocyanins'], data['color_intensity'],
-        data['hue'], data['od280_od315'], data['proline']
-    ]]
-
-    # Realizar la predicción
-    prediction = modelo.predict(input_data)
-    return prediction[0]
-
-# Programa de prueba
+# Menú para probar las 3 implementaciones
 def main():
-    # Datos de entrada para las predicciones
-    data = {
-        "alcohol": 14.0,
-        "malic_acid": 1.8,
-        "ash": 2.5,
-        "alcalinity_of_ash": 20.0,
-        "magnesium": 110.0,
-        "total_phenols": 2.5,
-        "flavanoids": 2.9,
-        "nonflavanoid_phenols": 0.3,
-        "proanthocyanins": 1.5,
-        "color_intensity": 5.5,
-        "hue": 1.02,
-        "od280_od315": 3.0,
-        "proline": 1200.0
-    }
+    while True:
+        print("\nSelecciona el método de predicción:")
+        print("1. Predicción usando REST API")
+        print("2. Predicción usando gRPC")
+        print("3. Predicción usando Kafka")
+        print("4. Salir")
 
-    print("Predicciones:")
-    print("-------------------------------")
+        choice = input("Selecciona una opción: ")
 
-    # 1. Predicción con gRPC
-    print("1. Predicción con gRPC:")
-    pred_grpc = prediccion_grpc(data)
-    print(f"Predicción gRPC: {pred_grpc}")
-
-    # 2. Predicción con Kafka
-    print("\n2. Predicción con Kafka:")
-    pred_kafka = prediccion_kafka(data)
-    print(f"Predicción Kafka: {pred_kafka}")
-
-    # 3. Predicción local
-    print("\n3. Predicción local:")
-    pred_local = prediccion_local(data)
-    print(f"Predicción local: {pred_local}")
+        if choice == "1":
+            predict_rest(sample_data)
+        elif choice == "2":
+            predict_grpc(sample_data)
+        elif choice == "3":
+            predict_kafka(sample_data)
+        elif choice == "4":
+            print("Saliendo...")
+            break
+        else:
+            print("Opción inválida. Intenta de nuevo.")
 
 if __name__ == "__main__":
     main()

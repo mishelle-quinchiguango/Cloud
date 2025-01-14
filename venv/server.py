@@ -18,8 +18,17 @@ class WinePredictionService(wine_service_pb2_grpc.WinePredictionServicer):
             request.nonflavanoid_phenols, request.proanthocyanins, request.color_intensity,
             request.hue, request.od280_od315, request.proline
         ]]
+        
+        # Imprimir los datos recibidos para verificar
+        print("Datos recibidos en el servidor:", input_data)
+        
         # Realizar predicción con el modelo
         prediction = modelo.predict(input_data)
+        
+        # Imprimir la predicción realizada para confirmar el resultado
+        print("Predicción realizada por el modelo:", prediction)
+        
+        # Retornar la predicción al cliente
         return wine_service_pb2.WineResponse(prediction=int(prediction[0]))
 
 # Función para iniciar el servidor
@@ -37,4 +46,3 @@ def serve():
 
 if __name__ == "__main__":
     serve()
-

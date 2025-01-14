@@ -1,37 +1,54 @@
-from confluent_kafka import Producer, Consumer, KafkaException
+from kafka import KafkaConsumer, KafkaProducer
+import joblib
 import json
 
-def prediccion_kafka(data):
-    # Configurar el productor
-    producer = Producer({'bootstrap.servers': 'localhost:29092'})
+# Cargar el modelo guardado
+modelo = joblib.load("wine_classification_model.pkl")
 
-    # Enviar el mensaje al tópico
-    producer.produce('wine-predictions', key="key1", value=json.dumps(data))
-    producer.flush()
-    print("Mensaje enviado a Kafka.")
+# Configuración de Kafka
+KAFKA_BROKER = 'localhost:9092'  # Dirección del broker Kafka
+TOPIC_REQUESTS = 'predictions_requests'  # Topic de entrada
+TOPIC_RESULTS = 'predictions_results'  # Topic de salida
 
-    # Configurar el consumidor
-    consumer = Consumer({
-        'bootstrap.servers': 'localhost:29092',
-        'group.id': 'wine-consumer-group',
-        'auto.offset.reset': 'earliest'
-    })
-    consumer.subscribe(['wine-predictions'])
+# Inicializar productor y consumidor
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_BROKER,
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')  # Serializar mensajes a JSON
+)
 
-    # Leer el mensaje del tópico
-    while True:
-        msg = consumer.poll(timeout=10.0)
-        if msg is None:
-            print("No se recibieron mensajes.")
-            continue
-        if msg.error():
-            if msg.error().code() == KafkaException._PARTITION_EOF:
-                continue
-            else:
-                print(f"Error en el mensaje: {msg.error()}")
-                break
+consumer = KafkaConsumer(
+    TOPIC_REQUESTS,
+    bootstrap_servers=KAFKA_BROKER,
+    auto_offset_reset='earliest',
+    group_id='prediction_group',
+    value_deserializer=lambda m: json.loads(m.decode('utf-8'))  # Deserializar mensajes de JSON
+)
 
-        # Mostrar el mensaje recibido
-        print(f"Mensaje recibido: {msg.value().decode('utf-8')}")
-        consumer.close()
-        return json.loads(msg.value())
+print("Servicio de predicciones iniciado. Esperando solicitudes...")
+
+# Procesar mensajes de Kafka
+for message in consumer:
+    try:
+        # Leer datos del mensaje
+        data = message.value
+        print("Solicitud recibida:", data)
+        
+        # Extraer características
+        input_data = [[
+            data['alcohol'], data['malic_acid'], data['ash'], data['alcalinity_of_ash'],
+            data['magnesium'], data['total_phenols'], data['flavanoids'],
+            data['nonflavanoid_phenols'], data['proanthocyanins'], data['color_intensity'],
+            data['hue'], data['od280_od315'], data['proline']
+        ]]
+        
+        # Realizar predicción
+        prediction = modelo.predict(input_data)[0]
+        print("Predicción realizada:", prediction)
+        
+        # Enviar resultado al topic de salida
+        result = {"prediction": int(prediction), "input": data}
+        producer.send(TOPIC_RESULTS, value=result)
+        print("Resultado enviado al topic:", TOPIC_RESULTS)
+    
+    except Exception as e:
+        print("Error procesando el mensaje:", e)
